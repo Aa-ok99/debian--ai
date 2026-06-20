@@ -27,13 +27,13 @@ flowchart TD
   E --> F["🤖 npm install -g opencode-ai"]
   F --> G["✅ OpenCode พร้อมใช้งาน!"]
 
-  style A fill:#d4edda,stroke:#155724,color:#155724
-  style B fill:#c3e6cb,stroke:#155724,color:#155724
-  style C fill:#b8daff,stroke:#004085,color:#004085
-  style D fill:#d6d8db,stroke:#383d41,color:#383d41
-  style E fill:#f8d7da,stroke:#721c24,color:#721c24
-  style F fill:#d4edda,stroke:#155724,color:#155724
-  style G fill:#cce5ff,stroke:#004085,color:#004085
+  style A fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
+  style B fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
+  style C fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
+  style D fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
+  style E fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
+  style F fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
+  style G fill:#98FF98,stroke:#1a7f1a,stroke-width:2px,color:#0a3d0a
 ```
 
 ## ⚡ วิธีติดตั้ง (คำสั่งเดียว)
