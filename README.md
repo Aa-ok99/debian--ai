@@ -63,9 +63,9 @@ opencode
 
 ## ⭐ การ setup เพิ่มเติม 
 
-เพื่อให้จัดการไฟล์​และใช้งานง่าย 2 คำสั่ง d กับ c:
-d เข้าสู่สภาพแวดล้อม debian:
-c เพื่อดูโฟเดอร์​หรือไฟล์ในสภาพแวดล้อมของ termux netive​ 
+เพื่อให้จัดการไฟล์​และใช้งานง่าย 2 คำสั่ง
+d เข้าสู่สภาพแวดล้อม debian / 
+c เพื่อดูโฟเดอร์​และไฟล์(debian)ในสภาพแวดล้อมของ termux netive​ 
 
 ```bash
 ln -s /data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/rootfs/root $HOME/d_root
