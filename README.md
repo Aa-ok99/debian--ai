@@ -61,6 +61,18 @@ proot-distro login debian
 opencode
 ```
 
+## ⭐ การ setup เพิ่มเติม 
+
+เพื่อให้จัดการไฟล์​และใช้งานง่าย:
+
+```bash
+ln -s /data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/rootfs/root $HOME/d_root
+
+echo 'alias d="proot-distro login debian"' >> ~/.bashrc
+echo 'alias c="cd ~/d_root && ls -la"' >> ~/.bashrc
+
+source ~/.bashrc
+```
 ---
 
 <div align="center">
