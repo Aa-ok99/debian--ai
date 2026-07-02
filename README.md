@@ -4,10 +4,24 @@
 
 **ติดตั้ง OpenCode AI บน Termux ผ่าน Debian (proot-distro)**
 
-<p>
-  <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/opencode.svg" width="80" alt="OpenCode"/>
-  &nbsp;&nbsp;
-  <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Termux.svg" width="80" alt="Termux"/>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/opencode.svg" width="60" height="60" alt="OpenCode"/>
+  <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Termux.svg" width="60" height="60" alt="Termux"/>
+</p>
+
+<!-- Animated Status Badges -->
+<p align="center">
+  <img src="https://img.shields.io/badge/STATUS-ACTIVE-FF1493?style=for-the-badge&logo=github&logoColor=white&labelColor=FF69B4&color=FF1493" alt="Status Active"/>
+  <img src="https://img.shields.io/badge/DEBIAN-12-FF6B9D?style=for-the-badge&logo=debian&logoColor=white&labelColor=FFB6C1" alt="Debian 12"/>
+  <img src="https://img.shields.io/badge/NODE-20.x-FF1493?style=for-the-badge&logo=nodedotjs&logoColor=white&labelColor=FF69B4" alt="Node 20.x"/>
+  <img src="https://img.shields.io/badge/BUN-1.x-FF6B9D?style=for-the-badge&logo=bun&logoColor=white&labelColor=FFB6C1" alt="Bun 1.x"/>
+</p>
+
+<!-- Animated SVG Badges -->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/badges/status.svg" width="120" alt="Status"/>
+  <img src="https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/badges/version.svg" width="120" alt="Version"/>
+  <img src="https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/badges/build.svg" width="120" alt="Build"/>
 </p>
 
 [![Made with](https://img.shields.io/badge/Made%20with-Bash-FF69B4?logo=gnubash&logoColor=white)](https://www.gnu.org/software/bash/)
@@ -18,29 +32,46 @@
 
 ---
 
-```mermaid
-flowchart TD
-  A["📱 Termux (Android)"] --> B["📦 pkg install proot-distro"]
-  B --> C["🐧 proot-distro install debian"]
-  C --> D["⬇️ curl · git · nodejs · npm"]
-  D --> E["🧪 Install Bun"]
-  E --> F["🤖 npm install -g opencode-ai"]
-  F --> G["✅ OpenCode พร้อมใช้งาน!"]
+<div align="center">
 
-  style A fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
-  style B fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
-  style C fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
-  style D fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
-  style E fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
-  style F fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
-  style G fill:#FFB6C1,stroke:#FF1493,stroke-width:2px,color:#8B0A50
+## 🔄 ขั้นตอนการติดตั้ง
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#FFB6C1','primaryTextColor': '#8B0A50','primaryBorderColor': '#FF1493','lineColor': '#FF69B4','secondaryColor': '#FFE4E1','tertiaryColor': '#FFF0F5'}}}%%
+flowchart LR
+  A["📱 Termux"] --> B["📦 proot-distro"]
+  B --> C["🐧 Debian"]
+  C --> D["⬇️ Tools"]
+  D --> E["🧪 Bun"]
+  E --> F["🤖 OpenCode"]
+  F --> G["✅ พร้อมใช้!"]
+
+  style A fill:#FFB6C1,stroke:#FF1493,stroke-width:1.5px,color:#8B0A50,font-size:11px
+  style B fill:#FFC0CB,stroke:#FF1493,stroke-width:1.5px,color:#8B0A50,font-size:11px
+  style C fill:#FFB6C1,stroke:#FF1493,stroke-width:1.5px,color:#8B0A50,font-size:11px
+  style D fill:#FFC0CB,stroke:#FF1493,stroke-width:1.5px,color:#8B0A50,font-size:11px
+  style E fill:#FFB6C1,stroke:#FF1493,stroke-width:1.5px,color:#8B0A50,font-size:11px
+  style F fill:#FFC0CB,stroke:#FF1493,stroke-width:1.5px,color:#8B0A50,font-size:11px
+  style G fill:#FF69B4,stroke:#FF1493,stroke-width:2px,color:#FFFFFF,font-size:12px
 ```
+
+</div>
+
+---
 
 ⚡ วิธีติดตั้ง (คำสั่งเดียว)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/setup.sh | bash
 ```
+
+<div align="center">
+
+⏳ ใช้เวลาประมาณ 2-5 นาที ขึ้นอยู่กับความเร็วอินเทอร์เน็ต
+
+</div>
+
+---
 
 📦 สิ่งที่จะติดตั้งโดยอัตโนมัติ
 
@@ -51,6 +82,8 @@ curl -fsSL https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/setup.sh | 
 4 Bun Runtime JavaScript สมัยใหม่
 5 OpenCode AI AI coding agent (global)
 
+---
+
 🚀 วิธีเข้าใช้งาน
 
 หลังติดตั้งเสร็จ ให้รัน:
@@ -59,6 +92,8 @@ curl -fsSL https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/setup.sh | 
 proot-distro login debian
 opencode
 ```
+
+---
 
 ⭐ การตั้งค่าเพิ่มเติม
 
@@ -80,7 +115,39 @@ source ~/.bashrc
 
 ---
 
+🎯 ตัวอย่างการใช้งาน
+
+```bash
+# เข้าสู่ Debian
+d
+
+# ดูไฟล์ใน Termux native
+c
+
+# เรียกใช้ OpenCode
+opencode
+```
+
+---
+
 <div align="center">
+
+📊 สถานะโปรเจค
+
+<p align="center">
+  <img src="https://img.shields.io/badge/🟢%20ONLINE-100%25-FF1493?style=flat-square&logo=statuspage&logoColor=white&labelColor=FF69B4" alt="Online"/>
+  <img src="https://img.shields.io/badge/📦%20SIZE-15MB-FF6B9D?style=flat-square&logo=files&logoColor=white&labelColor=FFB6C1" alt="Size"/>
+  <img src="https://img.shields.io/badge/⚡%20SPEED-Fast-FF1493?style=flat-square&logo=speedtest&logoColor=white&labelColor=FF69B4" alt="Speed"/>
+</p>
+
+✨ แหล่งข้อมูลเพิ่มเติม
+
+ช่องทาง ลิงก์
+📦 OpenCode opencode.ai
+📱 Termux termux.com
+🐧 Debian debian.org
+
+---
 
 <sub>✨ Repo by @Aa-ok99 | OpenCode is open source</sub>
 
