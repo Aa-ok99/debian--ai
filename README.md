@@ -112,6 +112,10 @@ echo 'alias c="cd ~/d_root && ls -la"' >> ~/.bashrc
 
 source ~/.bashrc
 ```
+*ubuntu​
+
+```bash
+ln -s /data/data/com.termux/files/usr/var/lib/proot-distro/containers/ubuntu/rootfs/root $HOME/u_root
 
 ---
 
