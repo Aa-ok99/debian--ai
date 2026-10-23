@@ -62,7 +62,7 @@ flowchart LR
 ⚡ วิธีติดตั้ง (คำสั่งเดียว)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/5.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Aa-ok99/debian--ai/main/4.sh | bash
 ```
 
 <div align="center">
