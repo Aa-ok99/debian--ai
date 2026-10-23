@@ -4,12 +4,14 @@ set -euo pipefail
 # ==========================================
 # ติดตั้ง OpenCode AI บน Termux ด้วย NVM
 # พร้อมระบบ Alias ครบครัน (เวอร์ชัน UI/Animation)
+# แก้ไขโดยผู้ชำนาญ - พร้อมใช้งาน
 # ==========================================
 
 # ---------- Theme / Colors ----------
 RESET="\033[0m"
 BOLD="\033[1m"
 DIM="\033[2m"
+WHITE="\033[1;37m"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -23,7 +25,6 @@ NC='\033[0m'
 clear_line(){ printf "\r\033[K"; }
 
 grad() {
-  # simple animated gradient-ish text (lightweight)
   local s="$1"
   local colors=("$CYAN" "$BLUE" "$MAGENTA" "$YELLOW" "$GREEN")
   local out="" i=0
@@ -41,14 +42,18 @@ ok()   { echo -e "${BOLD}${GREEN}✓${RESET} $*"; }
 warn() { echo -e "${BOLD}${YELLOW}!${RESET} $*"; }
 err()  { echo -e "${BOLD}${RED}✗${RESET} $*" >&2; }
 
+# spinner_run: แสดง spinner ระหว่างรันคำสั่ง
+# ใช้ log ไฟล์ชั่วคราวเพื่อ preserve exit code
 spinner_run() {
-  # spinner_run "message" cmd args...
   local msg="$1"; shift
+  local logf
+  logf="$(mktemp "${TMPDIR:-/tmp}/spin.XXXXXX")"
+
   echo -en "${BOLD}${BLUE}•${RESET} ${msg} "
-  "$@" >/dev/null 2>&1 &
+  "$@" >"$logf" 2>&1 &
   local pid=$!
 
-  local spin='|/-\'
+  local spin='|/-\\'
   local i=0
   while kill -0 "$pid" >/dev/null 2>&1; do
     i=$(( (i+1) % 4 ))
@@ -57,57 +62,38 @@ spinner_run() {
     echo -ne "\b"
   done
 
-  wait "$pid" >/dev/null 2>&1 || true
-  echo -e "${DIM}done${RESET}"
+  local rc=0
+  wait "$pid" || rc=$?
+
+  if [ "$rc" -eq 0 ]; then
+    echo -e "${DIM}done${RESET}"
+    rm -f "$logf"
+  else
+    echo -e "${RED}failed${RESET}"
+    err "คำสั่งล้มเหลว (exit $rc): $*"
+    echo -e "${DIM}---- log ล่าสุด ----${RESET}"
+    tail -n 30 "$logf" >&2 || true
+    rm -f "$logf"
+    return "$rc"
+  fi
 }
 
-bar_run() {
-  # bar_run "message" pid-like command (runs in bg)
-  local msg="$1"; shift
+# ---------- Pre-flight checks ----------
+if [ ! -d "/data/data/com.termux" ] && [ -z "${TERMUX_VERSION:-}" ]; then
+  warn "ตรวจไม่พบสภาพแวดล้อม Termux — สคริปต์นี้ออกแบบมาสำหรับ Termux"
+  read -r -p "ต้องการดำเนินการต่อหรือไม่? [y/N] " ans
+  [[ "$ans" =~ ^[Yy]$ ]] || { err "ยกเลิก"; exit 1; }
+fi
 
-  # Start command
-  "$@" >/dev/null 2>&1 &
-  local pid=$!
+if ! command -v pkg >/dev/null 2>&1; then
+  err "ไม่พบคำสั่ง 'pkg' — กรุณารันบน Termux"
+  exit 1
+fi
 
-  local width=34
-  local i=0
-  local blocks='▢▣▤▥▦▧▨▩█'
-
-  while kill -0 "$pid" >/dev/null 2>&1; do
-    clear_line
-
-    local filled=$(( (i % (width+1)) ))
-    local empty=$(( width - filled ))
-
-    local c
-    case $((i % 5)) in
-      0) c="$CYAN" ;;
-      1) c="$BLUE" ;;
-      2) c="$MAGENTA" ;;
-      3) c="$YELLOW" ;;
-      4) c="$GREEN" ;;
-    esac
-
-    local barstr=""
-    for ((k=0; k<filled; k++)); do barstr+="${c}█${RESET}"; done
-    for ((k=0; k<empty; k++)); do barstr+="░"; done
-
-    printf "%b %b%b%b ${DIM}%b%b%b${RESET}\n" \
-      "${BOLD}${CYAN}•${RESET}" \
-      "${BOLD}${WHITE:-}" "" \
-      "${DIM}" "${WHITE:-}" \
-      "${DIM}[${RESET}${barstr}${DIM}]${RESET}" ""
-
-    # Above line has extra complexity; keep simple:
-    # Redraw again without extra tokens
-    sleep 0.08
-    i=$((i+1))
-  done
-
-  clear_line
-  echo -e "${DIM}done${RESET}"
-  wait "$pid" >/dev/null 2>&1 || true
-}
+# ตรวจเน็ตเวิร์ก
+if ! command -v curl >/dev/null 2>&1; then
+  spinner_run "ติดตั้ง curl" pkg install -y curl
+fi
 
 # -------- Header --------
 echo
@@ -125,26 +111,36 @@ spinner_run "pkg upgrade" pkg upgrade -y
 
 echo
 echo -e "${YELLOW}>>> ติดตั้ง proot-distro...${NC}"
-spinner_run "Installing proot-distro" pkg install proot-distro -y
+if ! command -v proot-distro >/dev/null 2>&1; then
+  spinner_run "Installing proot-distro" pkg install -y proot-distro
+else
+  ok "proot-distro มีอยู่แล้ว"
+fi
 
 # ---------- Step 2 ----------
 echo
 echo -e "${YELLOW}>>> [2/6] ติดตั้ง ubuntu (อาจใช้เวลา 2-5 นาที)...${NC}"
-# proot-distro install ubuntu อาจนาน ให้ใช้ spinner
-spinner_run "proot-distro install ubuntu" proot-distro install ubuntu
+# ตรวจว่ามี ubuntu อยู่แล้วหรือยัง
+if proot-distro list 2>/dev/null | grep -qE '^\s*ubuntu\s' && \
+   [ -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
+  ok "ubuntu ถูกติดตั้งไว้แล้ว — ข้ามขั้นตอนนี้"
+else
+  spinner_run "proot-distro install ubuntu" proot-distro install ubuntu
+fi
 
 # ---------- Step 3 ----------
 echo
 echo -e "${YELLOW}>>> [3/6] สร้างสคริปต์ตั้งค่าใน ubuntu...${NC}"
 
-cat > "$HOME/setup-opencode.sh" << 'EOF'
+SETUP_SCRIPT="$HOME/setup-opencode.sh"
+cat > "$SETUP_SCRIPT" << 'EOF'
 #!/bin/bash
 set -euo pipefail
 
-RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================="
@@ -152,104 +148,133 @@ echo -e "  ติดตั้ง OpenCode AI ใน ubuntu (ด้วย NVM)"
 echo -e "==========================================${NC}"
 
 echo -e "${YELLOW}--- อัปเดต ubuntu packages ---${NC}"
-apt update >/dev/null 2>&1 || true
-apt upgrade -y >/dev/null 2>&1 || true
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get upgrade -y
 
 echo -e "${YELLOW}--- ติดตั้ง build-essential, curl, git ---${NC}"
-apt install -y curl git build-essential >/dev/null 2>&1 || true
+apt-get install -y curl git build-essential ca-certificates
 
 echo -e "${YELLOW}--- ติดตั้ง NVM ---${NC}"
-# install NVM (latest in your original script pinned v0.40.1)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/5.sh | bash >/dev/null 2>&1
-
-# Load NVM immediately (best effort)
+# URL ที่ถูกต้อง: install.sh (ไม่ใช่ 5.sh — นั่นเป็นชื่อไฟล์ของคุณ!)
 export NVM_DIR="$HOME/.nvm"
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+  curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+fi
+
+# Load NVM
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
 
-echo -e "${YELLOW}--- ติดตั้ง Node.js เวอร์ชันล่าสุด ---${NC}"
-nvm install node >/dev/null 2>&1
-nvm alias default node >/dev/null 2>&1
+echo -e "${YELLOW}--- ติดตั้ง Node.js LTS ---${NC}"
+nvm install --lts
+nvm alias default 'lts/*'
+nvm use default
 
 echo -e "${GREEN}✅ ติดตั้ง Node.js สำเร็จ!${NC}"
 echo -e "   Node: $(node -v 2>/dev/null || echo '?')"
 echo -e "   npm:  $(npm -v 2>/dev/null || echo '?')"
 
-echo -e "${YELLOW}--- ติดตั้ง OpenCode AI (npm install -g) ---${NC}"
-curl -fsSL https://opencode.ai/v2/install | bash 
-npm install -g @opencode/cli >/dev/null 2>&1 || true
+echo -e "${YELLOW}--- ติดตั้ง OpenCode AI ---${NC}"
+# ชื่อ package ที่ถูกต้องคือ 'opencode-ai'
+npm install -g opencode-ai
 
 if command -v opencode &>/dev/null; then
-  echo -e "${GREEN}✅ ติดตั้ง OpenCode AI สำเร็จ!${NC}"
-  opencode --help >/dev/null 2>&1 || true
+  echo -e "${GREEN}✅ ติดตั้ง OpenCode AI สำเร็จ! ($(opencode --version 2>/dev/null || echo '?'))${NC}"
 else
-  echo -e "${RED}❌ ติดตั้งไม่สำเร็จ ลองติดตั้งใหม่ด้วย:${NC}"
-  echo -e "   npm install -g @opencode/cli"
-  npm install -g @opencode/cli >/dev/null 2>&1 || true
+  echo -e "${RED}❌ ไม่พบคำสั่ง opencode — ลองติดตั้งใหม่ภายหลัง${NC}"
+  exit 1
 fi
 
-# Add a PATH hint to .bashrc (best effort)
-echo 'export NVM_DIR="$HOME/.nvm"' >> "$HOME/.bashrc" 2>/dev/null || true
-echo '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"' >> "$HOME/.bashrc" 2>/dev/null || true
+# เพิ่ม NVM loader ใน .bashrc (idempotent)
+if ! grep -q 'NVM_DIR' "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" << 'RC'
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+RC
+fi
 
+echo -e "${GREEN}✅ ตั้งค่า ubuntu เสร็จสมบูรณ์${NC}"
 EOF
 
-chmod +x "$HOME/setup-opencode.sh"
+chmod +x "$SETUP_SCRIPT"
 
 # ---------- Step 4 ----------
 echo
 echo -e "${YELLOW}>>> [4/6] กำลังติดตั้งใน ubuntu (3-5 นาที)...${NC}"
+# สำคัญ: ต้อง copy สคริปต์เข้า rootfs ก่อน เนื่องจาก ~ ฝั่ง Termux ≠ ~ ฝั่ง ubuntu
+UBUNTU_HOME="/root"   # proot-distro login ubuntu ใช้ root เป็น default
+DEST="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu${UBUNTU_HOME}/setup-opencode.sh"
+cp "$SETUP_SCRIPT" "$DEST"
+chmod +x "$DEST"
+
 spinner_run "proot-distro login + setup" \
-  proot-distro login ubuntu -- bash ~/setup-opencode.sh
+  proot-distro login ubuntu -- bash "$UBUNTU_HOME/setup-opencode.sh"
 
 # ---------- Step 5 ----------
 echo
 echo -e "${YELLOW}>>> [5/6] สร้างระบบ Alias...${NC}"
 
-cat > "$HOME/.opencode_aliases" << 'EOF'
+ALIAS_FILE="$HOME/.opencode_aliases"
+cat > "$ALIAS_FILE" << 'EOF'
 # ==========================================
 # Aliases สำหรับ OpenCode AI + ubuntu
 # ==========================================
+# หมายเหตุ: ใช้ฟังก์ชันแทน alias เพื่อรองรับการส่ง argument ข้าม proot-distro
 
-# --- คำสั่งพื้นฐาน ---
-alias ubuntu='proot-distro login ubuntu'
-alias ubuntu-root='proot-distro login ubuntu -- bash -c "su -"'
+_ubuntu_exec() {
+  # รันคำสั่งใน ubuntu พร้อม load NVM
+  local cmd="$1"; shift
+  proot-distro login ubuntu -- bash -c \
+    'export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; '"$cmd"' "$@"' _ "$@"
+}
 
-# --- ใช้ OpenCode โดยตรง (ไม่ต้องเข้า ubuntu) ---
-alias opencode='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; opencode \$*"'
+# --- เข้า ubuntu ---
+ubuntu()      { proot-distro login ubuntu "$@"; }
+ubuntu-root() { proot-distro login ubuntu -- bash -c 'su -'; }
 
-# --- ใช้ Node.js / npm จาก Termux โดยตรง (ผ่าน ubuntu) ---
-alias node-ubuntu='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; node \$*"'
-alias npm-ubuntu='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; npm \$*"'
-alias npx-ubuntu='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; npx \$*"'
+# --- ใช้ OpenCode โดยตรง ---
+opencode()    { _ubuntu_exec opencode "$@"; }
+oc()          { opencode "$@"; }
+oc-h()        { opencode --help; }
+oc-v()        { opencode --version; }
+
+# --- Node / npm / npx ---
+node-ubuntu() { _ubuntu_exec node "$@"; }
+npm-ubuntu()  { _ubuntu_exec npm "$@"; }
+npx-ubuntu()  { _ubuntu_exec npx "$@"; }
 
 # --- ตรวจสอบเวอร์ชัน ---
-alias node-version='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; node -v && npm -v"'
-alias check-opencode='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; opencode --version"'
+node-version() {
+  proot-distro login ubuntu -- bash -c \
+    'export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; echo "Node: $(node -v)"; echo "npm:  $(npm -v)"'
+}
+check-opencode() { oc-v; }
 
-# --- จัดการ NVM ใน ubuntu ---
-alias nvm-ubuntu='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; nvm \$*"'
+# --- จัดการ NVM ---
+nvm-ubuntu()  { _ubuntu_exec nvm "$@"; }
 
-# --- รันคำสั่งใดๆ ใน ubuntu แบบรวดเร็ว ---
-alias ubuntu-run='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; \$*"'
+# --- รันคำสั่งใดๆ ใน ubuntu ---
+ubuntu-run()  { _ubuntu_exec "$@"; }
 
 # --- ติดตั้ง/อัปเดต OpenCode AI ---
-alias update-opencode='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; npm update -g opencode-ai"'
-alias reinstall-opencode='proot-distro login ubuntu -- bash -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$HOME/.nvm/nvm.sh\" ] && . \"\$HOME/.nvm/nvm.sh\"; npm uninstall -g opencode-ai && ubuntu"'
+update-opencode()    { _ubuntu_exec npm update -g opencode-ai; }
+reinstall-opencode() { _ubuntu_exec npm uninstall -g opencode-ai; _ubuntu_exec npm install -g opencode-ai; }
 
-# --- ทางลัดเพิ่มเติม ---
-alias oc='opencode'
-alias oc-h='opencode --help'
-alias oc-v='opencode --version'
-
-# --- แสดง Alias ทั้งหมด ---
-alias show-aliases='cat ~/.opencode_aliases | grep "^alias"'
+# --- แสดง alias/function ทั้งหมด ---
+show-aliases() {
+  grep -E '^(alias|_ubuntu_exec|[a-z][a-z0-9_-]*\(\))' "$HOME/.opencode_aliases"
+}
 EOF
 
-# Add source to .bashrc
+# ผูกกับ .bashrc
 if ! grep -q ".opencode_aliases" "$HOME/.bashrc" 2>/dev/null; then
-  echo -e "\n# Load OpenCode aliases" >> "$HOME/.bashrc"
-  echo "source ~/.opencode_aliases" >> "$HOME/.bashrc"
+  {
+    echo ""
+    echo "# Load OpenCode aliases"
+    echo '[ -f "$HOME/.opencode_aliases" ] && source "$HOME/.opencode_aliases"'
+  } >> "$HOME/.bashrc"
   ok "เพิ่ม Alias เข้า .bashrc เรียบร้อย"
 else
   warn "Alias มีอยู่แล้วใน .bashrc"
@@ -266,7 +291,7 @@ cat > "$HOME/OPCODE-CHEATSHEET.txt" << 'EOF'
 🔹 คำสั่งหลัก
 ─────────────────────────────────────────────────────────────
   opencode        ใช้ OpenCode AI โดยตรง (ไม่ต้องเข้า ubuntu)
-  oc              alias ย่อของ opencode
+  oc              คำย่อของ opencode
   ubuntu          เข้า ubuntu (มี Node.js + NVM)
 
 🔹 ตรวจสอบเวอร์ชัน
@@ -284,16 +309,16 @@ cat > "$HOME/OPCODE-CHEATSHEET.txt" << 'EOF'
 
 🔹 จัดการ OpenCode AI
 ─────────────────────────────────────────────────────────────
-  update-opencode    อัปเดต OpenCode AI เป็นเวอร์ชันล่าสุด
-  reinstall-opencode ถอนติดตั้งแล้วติดตั้งใหม่
+  update-opencode     อัปเดต OpenCode AI เป็นเวอร์ชันล่าสุด
+  reinstall-opencode  ถอนติดตั้งแล้วติดตั้งใหม่
 
 🔹 รันคำสั่งใน ubuntu แบบรวดเร็ว
 ─────────────────────────────────────────────────────────────
-  ubuntu-run <cmd>   รันคำสั่งใดๆ ใน ubuntu (เช่น ubuntu-run ls -la)
+  ubuntu-run <cmd>    รันคำสั่งใดๆ ใน ubuntu (เช่น ubuntu-run ls -la)
 
 🔹 ดู Alias ทั้งหมด
 ─────────────────────────────────────────────────────────────
-  show-aliases       แสดง alias ที่มีทั้งหมด
+  show-aliases        แสดง alias/function ที่มีทั้งหมด
 
 ╔══════════════════════════════════════════════════════════════╗
 ║  💡 เปิดไฟล์นี้ดูเมื่อลืม: cat ~/OPCODE-CHEATSHEET.txt      ║
@@ -301,12 +326,12 @@ cat > "$HOME/OPCODE-CHEATSHEET.txt" << 'EOF'
 EOF
 ok "สร้าง Cheat Sheet สำเร็จ"
 
-# Load alias immediately
+# โหลด alias ทันทีใน session ปัจจุบัน
 # shellcheck disable=SC1090
-source "$HOME/.opencode_aliases"
+source "$ALIAS_FILE"
 
-# Cleanup temp script
-rm -f "$HOME/setup-opencode.sh" >/dev/null 2>&1 || true
+# Cleanup
+rm -f "$SETUP_SCRIPT" >/dev/null 2>&1 || true
 
 # ---------- Finish ----------
 echo
@@ -315,21 +340,20 @@ printf "%b\n" "${BOLD}${GREEN} 🎉 ติดตั้งทุกอย่า�
 printf "%b\n" "$(grad " ╚══════════════════════════════════════╝")"
 echo
 
-echo -e "${CYAN}📋 ระบบ Alias ที่สร้างขึ้น:${NC}"
-echo -e "  ${GREEN}opencode${NC}        - ใช้ OpenCode AI โดยตรง"
-echo -e "  ${GREEN}oc${NC}              - alias ย่อของ opencode"
-echo -e "  ${GREEN}ubuntu${NC}          - เข้า ubuntu"
-echo -e "  ${GREEN}node-version${NC}    - เช็ค Node.js + npm version"
-echo -e "  ${GREEN}oc-v${NC}            - เช็ค OpenCode version"
-echo -e "  ${GREEN}oc-h${NC}            - ดู Help OpenCode"
-echo -e "  ${GREEN}update-opencode${NC} - อัปเดต OpenCode AI"
-echo -e "  ${GREEN}show-aliases${NC}    - ดู alias ทั้งหมด"
+echo -e "${CYAN}📋 คำสั่งที่ใช้งานได้ทันที:${NC}"
+echo -e "  ${GREEN}opencode${NC}         - ใช้ OpenCode AI โดยตรง"
+echo -e "  ${GREEN}oc${NC}               - คำย่อของ opencode"
+echo -e "  ${GREEN}ubuntu${NC}           - เข้า ubuntu"
+echo -e "  ${GREEN}node-version${NC}     - เช็ค Node.js + npm version"
+echo -e "  ${GREEN}oc-v${NC}             - เช็ค OpenCode version"
+echo -e "  ${GREEN}oc-h${NC}             - ดู Help OpenCode"
+echo -e "  ${GREEN}update-opencode${NC}  - อัปเดต OpenCode AI"
+echo -e "  ${GREEN}show-aliases${NC}     - ดู alias/function ทั้งหมด"
 
 echo
 echo -e "${YELLOW}📖 ดู Cheat Sheet:${NC}"
 echo -e "  ${BLUE}cat ~/OPCODE-CHEATSHEET.txt${NC}"
-
 echo
-echo -e "${YELLOW}💡 โหลด alias ทันทีแล้ว (ถ้าสคริปต์นี้รันแล้ว) / หรือออกแล้วเข้าใหม่: ${NC}"
-echo -e "${BLUE}source ~/.bashrc${NC}"
+echo -e "${YELLOW}💡 Alias ถูกโหลดใน session นี้แล้ว / session ใหม่จะโหลดอัตโนมัติ:${NC}"
+echo -e "  ${BLUE}source ~/.bashrc${NC}"
 echo
