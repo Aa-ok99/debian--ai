@@ -1,35 +1,24 @@
 #!/usr/bin/env bash
 # ============================================================
-#  install.sh — All-in-One Termux + Ubuntu proot setup
-# ------------------------------------------------------------
-#  ใช้:
-#    curl -fsSL https://raw.githubusercontent.com/<USER>/<REPO>/main/install.sh | bash
-#
-#  พฤติกรรม:
-#    - ถ้ารันบน Termux  → ติดตั้ง proot-distro + Ubuntu แล้ว
-#                          re-invoke ตัวเองภายใน Ubuntu อัตโนมัติ
-#    - ถ้ารันใน Ubuntu  → ติดตั้ง node24 / pnpm / opencode
+#  install.sh — All-in-One Termux + Ubuntu proot setup (fixed)
 # ============================================================
 set -euo pipefail
 
-# ---------- สีสำหรับ log ----------
 C_RESET="\033[0m"; C_INFO="\033[36m"; C_OK="\033[32m"; C_WARN="\033[33m"; C_ERR="\033[31m"
 log()  { echo -e "${C_INFO}==>${C_RESET} $*"; }
 ok()   { echo -e "${C_OK}✔${C_RESET}  $*"; }
 warn() { echo -e "${C_WARN}⚠${C_RESET}  $*"; }
 err()  { echo -e "${C_ERR}✘${C_RESET}  $*" >&2; }
 
-# ---------- ตัวแปรตั้งค่า ----------
-REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/<USER>/<REPO>/main}"
-SELF_URL="${SELF_URL:-$REPO_RAW/install.sh}"
+REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/Aa-ok99/debian--ai/main}"
+SELF_URL="${SELF_URL:-$REPO_RAW/5.sh}"
 UBUNTU_DISTRO="${UBUNTU_DISTRO:-ubuntu}"
 NODE_VERSION="${NODE_VERSION:-24}"
 NVM_VERSION="${NVM_VERSION:-v0.40.3}"
-MARKER_DIR="${HOME}/.cache/termux-ubuntu-setup"
 
-# ============================================================
-#  ฟังก์ชัน: ตรวจ environment
-# ============================================================
+# ---------- helper: รันคำสั่งที่อาจ return non-zero โดยไม่ให้ set -e kill ----------
+safe() { "$@" || true; }
+
 detect_env() {
     if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux/files/usr" ]; then
         echo "termux"
@@ -43,38 +32,45 @@ detect_env() {
 }
 
 # ============================================================
-#  STAGE 1 — รันบน Termux host
+#  STAGE 1 — Termux host
 # ============================================================
 run_on_termux() {
     log "ตรวจพบ: Termux host"
+
     log "[1/3] อัปเดตแพ็กเกจ Termux..."
-    yes | pkg update -y
-    yes | pkg upgrade -y
+    # ✅ ใช้ -y อย่างเดียว ไม่ต้อง yes | ; ใช้ safe กัน set -e
+    safe pkg update -y
+    safe pkg upgrade -y
 
     log "[2/3] ติดตั้ง git / proot-distro / proot..."
     pkg install -y git proot-distro proot
 
     log "[3/3] เตรียม Ubuntu (${UBUNTU_DISTRO})..."
-    if ! proot-distro list --installed 2>/dev/null | grep -qx "$UBUNTU_DISTRO"; then
+    if proot-distro list --installed 2>/dev/null | grep -qx "$UBUNTU_DISTRO"; then
+        ok "$UBUNTU_DISTRO มีอยู่แล้ว ข้ามการติดตั้ง"
+    else
         proot-distro install "$UBUNTU_DISTRO"
         ok "ติดตั้ง $UBUNTU_DISTRO เรียบร้อย"
-    else
-        ok "$UBUNTU_DISTRO มีอยู่แล้ว ข้ามการติดตั้ง"
     fi
 
-    # คัดลอกสคริปต์เข้าไปใน Ubuntu แล้ว re-invoke ตัวเอง
+    # ดึงสคริปต์ตัวเองเข้าไปใน Ubuntu แล้วรัน stage 2
     log "ส่งสคริปต์เข้าไปรันภายใน $UBUNTU_DISTRO..."
-    TARGET="/root/install-allinone.sh"
-    proot-distro login "$UBUNTU_DISTRO" -- bash -c "
+    # ใช้ curl ดึงจาก SELF_URL ถ้า $0 ไม่ใช่ไฟล์จริง (กรณีรันผ่าน pipe)
+    if [ -f "$0" ] && [ -s "$0" ]; then
+        SCRIPT_SRC="$(cat "$0")"
+    else
+        log "  \$0 ไม่ใช่ไฟล์ (pipe) → ดึงจาก $SELF_URL"
+        SCRIPT_SRC="$(curl -fsSL "$SELF_URL")"
+    fi
+
+    # เขียนลง /root ใน ubuntu แล้วรัน
+    printf '%s' "$SCRIPT_SRC" | proot-distro login "$UBUNTU_DISTRO" -- bash -c '
         set -e
-        mkdir -p /root
-        cat > $TARGET <<'__INNER_EOF__'
-$(cat "$0" 2>/dev/null || curl -fsSL "$SELF_URL")
-__INNER_EOF__
-        chmod +x $TARGET
+        cat > /root/install-allinone.sh
+        chmod +x /root/install-allinone.sh
         export STAGE=ubuntu
-        bash $TARGET
-    "
+        bash /root/install-allinone.sh
+    '
 
     ok "ติดตั้งเสร็จทั้งหมด!"
     echo
@@ -83,7 +79,7 @@ __INNER_EOF__
 }
 
 # ============================================================
-#  STAGE 2 — รันภายใน Ubuntu (proot-distro)
+#  STAGE 2 — Ubuntu (proot-distro)
 # ============================================================
 run_on_ubuntu() {
     export DEBIAN_FRONTEND=noninteractive
@@ -129,10 +125,10 @@ run_on_ubuntu() {
     echo "===== สรุปเวอร์ชัน ====="
     node -v
     npm -v
-    pnpm -v
-    opencode -v || warn "opencode ยังไม่พร้อม — ลอง logout/login ใหม่"
+    pnpm -v || warn "pnpm ยังไม่พร้อม"
+    opencode -v || warn "opencode ยังไม่พร้อม — logout/login ใหม่"
 
-    # เขียน .bashrc ให้โหลด NVM อัตโนมัติ
+    # auto-NVM ใน .bashrc
     if ! grep -q 'NVM_DIR' "$HOME/.bashrc" 2>/dev/null; then
         cat >> "$HOME/.bashrc" <<'EOF'
 
@@ -147,10 +143,9 @@ EOF
 }
 
 # ============================================================
-#  MAIN — dispatch ตาม environment
+#  MAIN
 # ============================================================
 main() {
-    # ถ้ามี STAGE ถูก set มาแล้ว ให้ทำงานตามนั้น (ใช้ตอน re-invoke)
     if [ "${STAGE:-}" = "ubuntu" ]; then
         run_on_ubuntu
         return
@@ -162,12 +157,9 @@ main() {
     case "$ENV" in
         termux)  run_on_termux ;;
         ubuntu)  run_on_ubuntu ;;
-        proot)   warn "ตรวจพบ proot แต่ไม่ใช่ Ubuntu — พยายามรัน stage ubuntu"
+        proot)   warn "ตรวจพบ proot แต่ไม่ใช่ Ubuntu — ลองรัน stage ubuntu"
                  run_on_ubuntu ;;
-        *)
-            err "ไม่รองรับ environment นี้ — ต้องรันบน Termux หรือ Ubuntu (proot-distro)"
-            exit 1
-            ;;
+        *)       err "ไม่รองรับ environment นี้"; exit 1 ;;
     esac
 }
 
